@@ -8,26 +8,28 @@ const pixelFont = Press_Start_2P({
 });
 
 export default function Home() {
+
   const [tokenId, setTokenId] = useState("");
   const [compareId, setCompareId] = useState("");
-  const [nftData, setNftData] = useState(null);
-  const [compareData, setCompareData] = useState(null);
-  const [error, setError] = useState(null);
+
+  const [nftData, setNftData] = useState<any>(null);
+  const [compareData, setCompareData] = useState<any>(null);
+
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showDonate, setShowDonate] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const MORALIS_API_KEY = process.env.NEXT_PUBLIC_MORALIS_API_KEY || "";
   const CONTRACT_ADDRESS = "0x9eb6e2025b64f340691e424b7fe7022ffde12438";
-  const MY_WALLET = "0x6d8D5a62Eec504f1B35cae050aDa790077B33e81";
 
-  const fetchNFT = async (id, setData) => {
+  const fetchNFT = async (id: string, setData: any) => {
+
     setLoading(true);
     setError(null);
 
     try {
-      const url = `https://deep-index.moralis.io/api/v2.2/nft/${CONTRACT_ADDRESS}/${id}?chain=eth&format=decimal`;
+
+      const url =
+        `https://deep-index.moralis.io/api/v2.2/nft/${CONTRACT_ADDRESS}/${id}?chain=eth&format=decimal`;
 
       const res = await fetch(url, {
         headers: {
@@ -37,35 +39,34 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error(`Moralis API error: ${res.status}`);
+        throw new Error(`API error: ${res.status}`);
       }
 
       const data = await res.json();
 
       if (data.metadata && typeof data.metadata === "string") {
-        try {
-          data.metadata = JSON.parse(data.metadata);
-        } catch {
-          data.metadata = {};
-        }
+        data.metadata = JSON.parse(data.metadata);
       }
 
       setData(data);
-    } catch (err) {
-      setError(err.message || "Failed to fetch NFT data");
-    } finally {
-      setLoading(false);
+
+    } catch (err: any) {
+      setError(err.message);
     }
+
+    setLoading(false);
+
   };
 
-  const calculateRarity = (attributes) => {
+  const calculateRarity = (attributes: any[]) => {
+
     if (!attributes) return null;
 
     let score = 0;
-    let rareTrait = { name: "", percent: 100 };
+    let rareTrait = { name: "", weight: 0 };
 
-    attributes.forEach((attr) => {
-      const value = String(attr.value);
+    attributes.forEach((attr: any) => {
+
       let weight = 1;
 
       if (attr.trait_type === "Accessory") weight = 15;
@@ -77,57 +78,68 @@ export default function Home() {
 
       score += weight;
 
-      const percent = Math.random() * 10 + 1;
-
-      if (percent < rareTrait.percent) {
-        rareTrait = { name: value, percent };
+      if (weight > rareTrait.weight) {
+        rareTrait = {
+          name: attr.value,
+          weight,
+        };
       }
 
-      if (!isNaN(Number(value))) score += Number(value) * 0.2;
     });
 
-    const rank = Math.floor(10000 - score * 10);
+    const rank = Math.floor(10000 - score * 12);
+
+    let tier = "Common";
+
+    if (score > 60) tier = "Legendary";
+    else if (score > 45) tier = "Ultra Rare";
+    else if (score > 35) tier = "Rare";
+    else if (score > 25) tier = "Uncommon";
 
     return {
       score: Number(score.toFixed(2)),
       rank,
+      tier,
       rareTrait,
     };
+
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (tokenId) fetchNFT(tokenId, setNftData);
-  };
+  const rarity1 = nftData
+    ? calculateRarity(nftData.metadata?.attributes)
+    : null;
 
-  const handleCompare = (e) => {
-    e.preventDefault();
-    if (compareId) fetchNFT(compareId, setCompareData);
-  };
+  const rarity2 = compareData
+    ? calculateRarity(compareData.metadata?.attributes)
+    : null;
 
-  const getImage = (img) => {
+  const winner =
+    rarity1 && rarity2
+      ? rarity1.score > rarity2.score
+        ? 1
+        : rarity2.score > rarity1.score
+        ? 2
+        : 0
+      : null;
+
+  const getImage = (img: string) => {
+
     if (!img) return "";
+
     if (img.startsWith("ipfs://")) {
       return img.replace("ipfs://", "https://ipfs.io/ipfs/");
     }
+
     return img;
+
   };
 
-  const copyAddress = () => {
-    navigator.clipboard.writeText(MY_WALLET);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const renderNFT = (data: any, rarity: any, index: number) => {
 
-  const rarity1 = nftData ? calculateRarity(nftData.metadata?.attributes) : null;
-  const rarity2 = compareData ? calculateRarity(compareData.metadata?.attributes) : null;
-
-  const sameScore = rarity1 && rarity2 && rarity1.score === rarity2.score;
-
-  const renderNFT = (data, rarity, label = "") => {
     if (!data || !rarity) return null;
 
     return (
+
       <div
         style={{
           width: "420px",
@@ -135,37 +147,51 @@ export default function Home() {
           padding: "25px",
           border: "4px solid #000",
           boxShadow: "8px 8px 0 #000",
-          color: "#000"
+          color: "#000",
         }}
       >
-        <h2 style={{ fontSize: "0.8rem", textAlign: "center" }}>
-          NORMIE #{data.token_id} {label}
+
+        <h2 style={{ textAlign: "center", fontSize: "0.8rem" }}>
+          NORMIE #{data.token_id}
         </h2>
 
-        {!sameScore && (
-          <>
-            <p style={{ fontSize: "0.7rem", textAlign: "center" }}>
-              Rank #{rarity.rank} / 10000
-            </p>
-            <p style={{ fontSize: "0.7rem", textAlign: "center" }}>
-              Score: {rarity.score}
-            </p>
-          </>
-        )}
-
-        {sameScore && (
-          <p style={{ fontSize: "0.7rem", textAlign: "center" }}>
-            Same rarity score
+        {winner === index && (
+          <p
+            style={{
+              textAlign: "center",
+              fontSize: "0.7rem",
+              marginBottom: "10px",
+              color: "#0a0",
+            }}
+          >
+            WINNER
           </p>
         )}
 
-        <p style={{ fontSize: "0.6rem", textAlign: "center", marginTop: "10px" }}>
-          Most Rare Trait: <br />
-          {rarity.rareTrait.name} ({rarity.rareTrait.percent.toFixed(1)}%)
+        <p style={{ textAlign: "center", fontSize: "0.7rem" }}>
+          Rank #{rarity.rank} / 10000
+        </p>
+
+        <p style={{ textAlign: "center", fontSize: "0.7rem" }}>
+          Score: {rarity.score}
+        </p>
+
+        <p style={{ textAlign: "center", fontSize: "0.7rem" }}>
+          Tier: {rarity.tier}
+        </p>
+
+        <p
+          style={{
+            textAlign: "center",
+            fontSize: "0.6rem",
+            marginTop: "10px",
+          }}
+        >
+          Rarest Trait: {rarity.rareTrait.name}
         </p>
 
         <img
-          src={getImage(data.metadata?.image || "")}
+          src={getImage(data.metadata?.image)}
           style={{
             maxWidth: "100%",
             border: "4px solid #000",
@@ -182,17 +208,21 @@ export default function Home() {
             background: "#f8f8f8",
           }}
         >
-          {data.metadata?.attributes?.map((attr, i) => (
+          {data.metadata?.attributes?.map((attr: any, i: number) => (
             <div key={i}>
               {attr.trait_type}: {attr.value}
             </div>
           ))}
         </div>
+
       </div>
+
     );
+
   };
 
   return (
+
     <main
       className={pixelFont.className}
       style={{
@@ -203,17 +233,30 @@ export default function Home() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        WebkitFontSmoothing: "none",
       }}
     >
-      <h1 style={{ fontSize: "1.4rem", marginBottom: "40px", textAlign: "center" }}>
+
+      <h1
+        style={{
+          fontSize: "1.4rem",
+          marginBottom: "40px",
+          textAlign: "center",
+        }}
+      >
         Normies Rarity Score
       </h1>
 
-      {error && <p style={{ color: "red", marginBottom: "20px" }}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-        <form onSubmit={handleSubmit}>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (tokenId) fetchNFT(tokenId, setNftData);
+          }}
+        >
+
           <input
             value={tokenId}
             onChange={(e) => setTokenId(e.target.value)}
@@ -222,8 +265,11 @@ export default function Home() {
               padding: "10px",
               border: "4px solid #000",
               marginRight: "10px",
+              color: "#000",
+              background: "#fff",
             }}
           />
+
           <button
             style={{
               padding: "10px 20px",
@@ -234,9 +280,16 @@ export default function Home() {
           >
             {loading ? "SCAN..." : "SCAN"}
           </button>
+
         </form>
 
-        <form onSubmit={handleCompare}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (compareId) fetchNFT(compareId, setCompareData);
+          }}
+        >
+
           <input
             value={compareId}
             onChange={(e) => setCompareId(e.target.value)}
@@ -245,8 +298,11 @@ export default function Home() {
               padding: "10px",
               border: "4px solid #000",
               marginRight: "10px",
+              color: "#000",
+              background: "#fff",
             }}
           />
+
           <button
             style={{
               padding: "10px 20px",
@@ -257,7 +313,9 @@ export default function Home() {
           >
             COMPARE
           </button>
+
         </form>
+
       </div>
 
       <div
@@ -268,9 +326,13 @@ export default function Home() {
           flexWrap: "wrap",
         }}
       >
-        {renderNFT(nftData, rarity1)}
-        {renderNFT(compareData, rarity2, "(COMPARE)")}
+
+        {renderNFT(nftData, rarity1, 1)}
+        {renderNFT(compareData, rarity2, 2)}
+
       </div>
+
     </main>
+
   );
 }
