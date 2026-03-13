@@ -10,9 +10,9 @@ const pixelFont = Press_Start_2P({
 export default function Home() {
   const [tokenId, setTokenId] = useState("");
   const [compareId, setCompareId] = useState("");
-  const [nftData, setNftData] = useState<any>(null);
-  const [compareData, setCompareData] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [nftData, setNftData] = useState(null);
+  const [compareData, setCompareData] = useState(null);
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -22,7 +22,7 @@ export default function Home() {
   const CONTRACT_ADDRESS = "0x9eb6e2025b64f340691e424b7fe7022ffde12438";
   const MY_WALLET = "0x6d8D5a62Eec504f1B35cae050aDa790077B33e81";
 
-  const fetchNFT = async (id: string, setData: any) => {
+  const fetchNFT = async (id, setData) => {
     setLoading(true);
     setError(null);
 
@@ -51,20 +51,20 @@ export default function Home() {
       }
 
       setData(data);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Failed to fetch NFT data");
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateRarity = (attributes: any[]) => {
+  const calculateRarity = (attributes) => {
     if (!attributes) return null;
 
     let score = 0;
     let rareTrait = { name: "", percent: 100 };
 
-    attributes.forEach((attr: any) => {
+    attributes.forEach((attr) => {
       const value = String(attr.value);
       let weight = 1;
 
@@ -95,17 +95,17 @@ export default function Home() {
     };
   };
 
-  const handleSubmit = (e: any) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (tokenId) fetchNFT(tokenId, setNftData);
   };
 
-  const handleCompare = (e: any) => {
+  const handleCompare = (e) => {
     e.preventDefault();
     if (compareId) fetchNFT(compareId, setCompareData);
   };
 
-  const getImage = (img: string) => {
+  const getImage = (img) => {
     if (!img) return "";
     if (img.startsWith("ipfs://")) {
       return img.replace("ipfs://", "https://ipfs.io/ipfs/");
@@ -124,7 +124,7 @@ export default function Home() {
 
   const sameScore = rarity1 && rarity2 && rarity1.score === rarity2.score;
 
-  const renderNFT = (data: any, rarity: any, label = "") => {
+  const renderNFT = (data, rarity, label = "") => {
     if (!data || !rarity) return null;
 
     return (
@@ -135,6 +135,7 @@ export default function Home() {
           padding: "25px",
           border: "4px solid #000",
           boxShadow: "8px 8px 0 #000",
+          color: "#000"
         }}
       >
         <h2 style={{ fontSize: "0.8rem", textAlign: "center" }}>
@@ -181,7 +182,7 @@ export default function Home() {
             background: "#f8f8f8",
           }}
         >
-          {data.metadata?.attributes?.map((attr: any, i: number) => (
+          {data.metadata?.attributes?.map((attr, i) => (
             <div key={i}>
               {attr.trait_type}: {attr.value}
             </div>
@@ -196,11 +197,13 @@ export default function Home() {
       className={pixelFont.className}
       style={{
         background: "#f5f5f5",
+        color: "#000",
         minHeight: "100vh",
         padding: "40px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        WebkitFontSmoothing: "none",
       }}
     >
       <h1 style={{ fontSize: "1.4rem", marginBottom: "40px", textAlign: "center" }}>
@@ -268,113 +271,6 @@ export default function Home() {
         {renderNFT(nftData, rarity1)}
         {renderNFT(compareData, rarity2, "(COMPARE)")}
       </div>
-
-      <button
-        onClick={() => setShowDonate(!showDonate)}
-        style={{
-          position: "fixed",
-          bottom: "30px",
-          right: "30px",
-          width: "70px",
-          height: "70px",
-          fontSize: "2rem",
-          background: "#000",
-          color: "#fff",
-          border: "4px solid #000",
-          cursor: "pointer",
-        }}
-      >
-        $
-      </button>
-
-      {showDonate && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "110px",
-            right: "30px",
-            background: "#fff",
-            border: "4px solid #000",
-            padding: "20px",
-            width: "340px",
-            textAlign: "center",
-          }}
-        >
-          <p style={{ fontWeight: "bold", marginBottom: "10px" }}>
-            Support the dev
-          </p>
-
-          <p
-            style={{
-              wordBreak: "break-all",
-              fontSize: "0.6rem",
-              border: "3px solid #000",
-              padding: "10px",
-              background: "#f8f8f8",
-              marginBottom: "10px",
-            }}
-          >
-            0x6d8D5a62Eec504f1B35cae050aDa790077B33e81
-          </p>
-
-          <button
-            onClick={copyAddress}
-            style={{
-              background: "#000",
-              color: "#fff",
-              padding: "10px",
-              width: "100%",
-              fontSize: "0.6rem",
-            }}
-          >
-            {copied ? "COPIED!" : "COPY ADDRESS"}
-          </button>
-        </div>
-      )}
-
-      <button
-        onClick={() => setShowInfo(!showInfo)}
-        style={{
-          position: "fixed",
-          bottom: "30px",
-          right: "110px",
-          background: "#000",
-          color: "#fff",
-          padding: "6px 10px",
-          borderRadius: "50%",
-          fontSize: "1rem",
-          cursor: "pointer",
-        }}
-      >
-        ℹ️
-      </button>
-
-      {showInfo && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "70px",
-            right: "110px",
-            background: "#fff",
-            border: "4px solid #000",
-            padding: "20px",
-            width: "300px",
-            fontSize: "0.7rem",
-          }}
-        >
-          <p style={{ fontWeight: "bold", marginBottom: "6px" }}>
-            How Rarity Is Calculated
-          </p>
-          <p>
-            Normies rarity is estimated using weighted traits like accessories,
-            facial features, hairstyles and numeric attributes. Higher weighted
-            traits increase score.
-          </p>
-          <p style={{ marginTop: "4px", color: "gray" }}>
-            Scores are estimates and compared to the full 10,000 collection.
-          </p>
-        </div>
-      )}
     </main>
   );
 }
