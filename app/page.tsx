@@ -59,74 +59,90 @@ export default function Home() {
     const level = levelTrait ? parseInt(levelTrait.value, 10) || 0 : 0;
 
     let levelText = `LEVEL ${level}`;
-    let levelColor = level === 0 ? "#aaa" : level <= 5 ? "#ff9500" : level <= 15 ? "#ff6a00" : "#00ff9d";
-    let levelDesc = level === 0 ? "BASE - NO UPGRADES" : "UPGRADED - RARER DUE TO LEVEL";
+    let levelColor = level === 0 ? "#999" : level <= 5 ? "#ffaa33" : level <= 15 ? "#ff6a00" : "#00ffaa";
 
     return (
       <div
         style={{
-          width: "360px",
-          background: "#0f1620",
-          padding: "20px",
-          border: "4px solid #ff6a00",
-          boxShadow: "0 0 20px rgba(255,106,0,0.4)",
+          width: "380px",
+          background: "#0d1117",           // dark card bg
+          border: "2px solid #30363d",
+          borderRadius: "12px",
+          overflow: "hidden",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.8), inset 0 0 12px rgba(255,106,0,0.08)",
+          transition: "all 0.2s",
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.boxShadow = "0 12px 40px rgba(255,106,0,0.25), inset 0 0 20px rgba(255,106,0,0.12)";
+          e.currentTarget.style.transform = "translateY(-4px)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.8), inset 0 0 12px rgba(255,106,0,0.08)";
+          e.currentTarget.style.transform = "translateY(0)";
         }}
       >
-        <h2 style={{ textAlign: "center", fontSize: "1rem", marginBottom: "12px", color: "#ff6a00" }}>
-          {label} – {data.name.toUpperCase()}
-        </h2>
-
-        <img
-          src={getImage(data)}
-          alt={data.name}
-          style={{
-            width: "100%",
-            border: "4px solid #ff6a00",
-            imageRendering: "pixelated",
-            margin: "16px 0",
-            boxShadow: "0 0 15px rgba(255,106,0,0.3)",
-          }}
-        />
-
+        {/* Header */}
         <div
           style={{
-            fontSize: "0.75rem",
-            border: "3px solid #333",
-            padding: "12px",
-            background: "#0a0e15",
-            maxHeight: "260px",
-            overflowY: "auto",
-            color: "#eee",
+            background: "#161b22",
+            padding: "12px 16px",
+            borderBottom: "1px solid #30363d",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          {traits.map((attr, i) => (
-            <div key={i} style={{ margin: "6px 0" }}>
-              <strong style={{ color: "#ff6a00" }}>{attr.trait_type.toUpperCase()}:</strong> {attr.value}
-            </div>
-          ))}
-        </div>
-
-        <div style={{ marginTop: "16px", fontSize: "0.85rem", color: "#ddd" }}>
-          <div style={{ fontWeight: "bold", fontSize: "1.1rem", color: levelColor, marginBottom: "6px" }}>
+          <div style={{ fontSize: "0.95rem", color: "#ff6a00", fontWeight: "bold" }}>
+            {data.name.toUpperCase()}
+          </div>
+          <div style={{ fontSize: "0.85rem", color: levelColor }}>
             {levelText}
           </div>
-          <div style={{ color: levelColor, marginBottom: "8px" }}>
-            {levelDesc}
+        </div>
+
+        {/* Image area */}
+        <div style={{ padding: "16px", background: "#000" }}>
+          <img
+            src={getImage(data)}
+            alt={data.name}
+            style={{
+              width: "100%",
+              imageRendering: "pixelated",
+              border: "2px solid #30363d",
+              borderRadius: "8px",
+            }}
+          />
+        </div>
+
+        {/* Traits section */}
+        <div style={{ padding: "16px", fontSize: "0.8rem", color: "#c9d1d9" }}>
+          {traits.map((attr, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                margin: "8px 0",
+                padding: "4px 8px",
+                background: i % 2 === 0 ? "#161b22" : "transparent",
+                borderRadius: "4px",
+              }}
+            >
+              <span style={{ color: "#58a6ff" }}>{attr.trait_type}</span>
+              <span style={{ color: "#e6edf3" }}>{attr.value}</span>
+            </div>
+          ))}
+
+          <div style={{ marginTop: "16px", textAlign: "center", color: levelColor, fontWeight: "bold" }}>
+            {level === 0 ? "BASE NORMIE" : "UPGRADED NORMIE"}
           </div>
-          <div style={{ margin: "8px 0" }}>
-            TRAITS: {traitCount}
-          </div>
-          {rarity && rarity.rank > 0 ? (
-            <div style={{ fontWeight: "bold", color: "#ff6a00" }}>
-              RARITY SCORE: {rarity.score.toFixed(2)}<br />
+
+          {rarity && rarity.rank > 0 && (
+            <div style={{ marginTop: "12px", textAlign: "center", color: "#ff6a00" }}>
+              SCORE: {rarity.score.toFixed(2)}<br />
               RANK: #{rarity.rank}
             </div>
-          ) : (
-            <div style={{ color: "#888" }}>RARITY N/A</div>
           )}
-          <div style={{ fontSize: "0.7rem", color: "#888", marginTop: "8px" }}>
-            HIGHER LEVEL = MORE RARE (FOUNDER VIBE)
-          </div>
         </div>
       </div>
     );
@@ -136,59 +152,46 @@ export default function Home() {
     <main
       className={pixelFont.className}
       style={{
-        backgroundColor: "#000000",
-        backgroundImage: 'url("https://images.vexels.com/media/users/3/264959/raw/c8952802430225175500bdaf14bc7fbc-crypto-elements-pixel-art-pattern.jpg")',
-        backgroundRepeat: "repeat",
-        backgroundSize: "300px",
-        backgroundPosition: "center",
+        backgroundColor: "#0d1117",          // GitHub-dark-like dark grey-black
+        color: "#c9d1d9",
         minHeight: "100vh",
         padding: "40px 20px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        color: "#eee",
       }}
     >
-      {/* Dark overlay + subtle orange glow */}
-      <div style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.75)",
-        boxShadow: "inset 0 0 100px rgba(255,106,0,0.15)",
-        zIndex: -1,
-      }} />
-
       <h1 style={{
         fontSize: "2.2rem",
-        marginBottom: "32px",
+        marginBottom: "40px",
         color: "#ff6a00",
-        textShadow: "0 0 10px #ff6a00",
-        letterSpacing: "2px",
+        textShadow: "0 0 12px rgba(255,106,0,0.5)",
+        letterSpacing: "1px",
       }}>
         NORMIES RARITY CHECKER
       </h1>
 
-      <div style={{ display: "flex", gap: "16px", marginBottom: "32px", flexWrap: "wrap", justifyContent: "center" }}>
+      <div style={{ display: "flex", gap: "16px", marginBottom: "40px", flexWrap: "wrap", justifyContent: "center" }}>
         {["COMPARE", "MARKET", "BURNT"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab.toLowerCase())}
             style={{
               padding: "12px 28px",
-              border: "4px solid #ff6a00",
-              background: activeTab === tab.toLowerCase() ? "#ff6a00" : "#111",
-              color: activeTab === tab.toLowerCase() ? "#000" : "#ff6a00",
+              border: "2px solid #30363d",
+              background: activeTab === tab.toLowerCase() ? "#21262d" : "#161b22",
+              color: activeTab === tab.toLowerCase() ? "#ff6a00" : "#8b949e",
               fontWeight: "bold",
               cursor: "pointer",
-              textShadow: activeTab === tab.toLowerCase() ? "0 0 5px #000" : "0 0 5px #ff6a00",
-              transition: "all 0.15s",
+              borderRadius: "6px",
+              transition: "all 0.2s",
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.transform = "scale(1.08)";
-              e.currentTarget.style.boxShadow = "0 0 15px #ff6a00";
+              e.currentTarget.style.borderColor = "#ff6a00";
+              e.currentTarget.style.boxShadow = "0 0 16px rgba(255,106,0,0.3)";
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.borderColor = "#30363d";
               e.currentTarget.style.boxShadow = "none";
             }}
           >
@@ -200,47 +203,45 @@ export default function Home() {
       {error && (
         <div
           style={{
-            background: "#ff6a00",
+            background: "#21262d",
             padding: "12px 24px",
-            border: "4px solid #fff",
+            border: "2px solid #f85149",
+            borderRadius: "6px",
             marginBottom: "24px",
-            textAlign: "center",
-            maxWidth: "500px",
-            color: "#000",
+            color: "#f85149",
             fontWeight: "bold",
           }}
         >
-          {error.toUpperCase()}
+          {error}
         </div>
       )}
 
       {activeTab === "compare" && (
         <>
           <div style={{ display: "flex", gap: "16px", marginBottom: "40px", flexWrap: "wrap", justifyContent: "center" }}>
-            <form
-              onSubmit={(e) => { e.preventDefault(); fetchNFT(tokenId, setNftData, setNftRarity); }}
-              style={{ display: "flex" }}
-            >
+            <form onSubmit={(e) => { e.preventDefault(); fetchNFT(tokenId, setNftData, setNftRarity); }} style={{ display: "flex" }}>
               <input
                 value={tokenId}
                 onChange={(e) => setTokenId(e.target.value.trim())}
                 placeholder="TOKEN ID"
                 style={{
-                  padding: "12px",
-                  border: "4px solid #ff6a00",
-                  background: "#111",
-                  color: "#eee",
+                  padding: "12px 16px",
+                  border: "2px solid #30363d",
+                  background: "#0d1117",
+                  color: "#e6edf3",
                   width: "160px",
                   marginRight: "8px",
+                  borderRadius: "6px",
                 }}
               />
               <button
                 disabled={loading}
                 style={{
                   padding: "12px 24px",
-                  border: "4px solid #ff6a00",
-                  background: loading ? "#333" : "#ff6a00",
-                  color: loading ? "#888" : "#000",
+                  background: loading ? "#21262d" : "#238636",
+                  color: "#fff",
+                  border: "2px solid #238636",
+                  borderRadius: "6px",
                   cursor: "pointer",
                   fontWeight: "bold",
                 }}
@@ -249,29 +250,28 @@ export default function Home() {
               </button>
             </form>
 
-            <form
-              onSubmit={(e) => { e.preventDefault(); fetchNFT(compareId, setCompareData, setCompareRarity); }}
-              style={{ display: "flex" }}
-            >
+            <form onSubmit={(e) => { e.preventDefault(); fetchNFT(compareId, setCompareData, setCompareRarity); }} style={{ display: "flex" }}>
               <input
                 value={compareId}
                 onChange={(e) => setCompareId(e.target.value.trim())}
                 placeholder="COMPARE ID"
                 style={{
-                  padding: "12px",
-                  border: "4px solid #ff6a00",
-                  background: "#111",
-                  color: "#eee",
+                  padding: "12px 16px",
+                  border: "2px solid #30363d",
+                  background: "#0d1117",
+                  color: "#e6edf3",
                   width: "160px",
                   marginRight: "8px",
+                  borderRadius: "6px",
                 }}
               />
               <button
                 style={{
                   padding: "12px 24px",
-                  border: "4px solid #ff6a00",
-                  background: "#ff6a00",
-                  color: "#000",
+                  background: "#238636",
+                  color: "#fff",
+                  border: "2px solid #238636",
+                  borderRadius: "6px",
                   cursor: "pointer",
                   fontWeight: "bold",
                 }}
@@ -291,40 +291,37 @@ export default function Home() {
       {activeTab === "market" && (
         <div
           style={{
-            background: "#0f1620",
-            padding: "40px",
-            border: "6px solid #ff6a00",
-            boxShadow: "0 0 30px rgba(255,106,0,0.3)",
-            textAlign: "center",
+            background: "#0d1117",
+            padding: "32px",
+            border: "2px solid #30363d",
+            borderRadius: "12px",
             maxWidth: "500px",
-            color: "#eee",
+            textAlign: "center",
+            color: "#e6edf3",
           }}
         >
-          <h2 style={{ color: "#ff6a00" }}>MARKET STATS</h2>
+          <h2 style={{ color: "#ff6a00", marginBottom: "20px" }}>MARKET STATS</h2>
           <p>CIRCULATING: ~8,600</p>
           <p>FLOOR: ~0.05 ETH</p>
           <p>HOLDERS: ~1,800</p>
-          <p style={{ marginTop: "16px", fontSize: "0.9rem", color: "#aaa" }}>
-            REAL-TIME → OPENSEA / DEXSCREENER
-          </p>
         </div>
       )}
 
       {activeTab === "burnt" && (
         <div
           style={{
-            background: "#0f1620",
-            padding: "40px",
-            border: "6px solid #ff6a00",
-            boxShadow: "0 0 30px rgba(255,106,0,0.3)",
-            textAlign: "center",
+            background: "#0d1117",
+            padding: "32px",
+            border: "2px solid #30363d",
+            borderRadius: "12px",
             maxWidth: "500px",
-            color: "#eee",
+            textAlign: "center",
+            color: "#e6edf3",
           }}
         >
-          <h2 style={{ color: "#ff6a00" }}>BURNT NORMIES</h2>
-          <p>~1,300–1,400 BURNT (~13–14%)</p>
-          <p>BURN → ACTION POINTS → LEVEL UP → RARITY BOOST</p>
+          <h2 style={{ color: "#ff6a00", marginBottom: "20px" }}>BURNT NORMIES</h2>
+          <p>~1,300–1,400 BURNT</p>
+          <p>BURN → ACTION POINTS → LEVEL UP</p>
         </div>
       )}
 
@@ -334,17 +331,15 @@ export default function Home() {
           position: "fixed",
           bottom: "30px",
           right: "30px",
-          background: "#ff6a00",
-          border: "5px solid #fff",
-          padding: "16px 20px",
-          fontSize: "1.2rem",
-          color: "#000",
+          background: "#21262d",
+          border: "2px solid #ff6a00",
+          color: "#ff6a00",
+          padding: "16px 24px",
+          borderRadius: "8px",
           cursor: "pointer",
-          boxShadow: "0 0 15px #ff6a00",
-          transition: "transform 0.15s",
+          fontWeight: "bold",
+          boxShadow: "0 0 16px rgba(255,106,0,0.3)",
         }}
-        onMouseOver={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
-        onMouseOut={(e) => (e.currentTarget.style.transform = "scale(1)")}
       >
         SUPPORT
       </button>
@@ -363,27 +358,28 @@ export default function Home() {
         >
           <div
             style={{
-              background: "#0f1620",
+              background: "#0d1117",
               padding: "40px",
-              border: "6px solid #ff6a00",
+              border: "2px solid #30363d",
+              borderRadius: "12px",
               textAlign: "center",
               maxWidth: "500px",
-              color: "#eee",
+              color: "#e6edf3",
             }}
           >
-            <h2 style={{ color: "#ff6a00" }}>SUPPORT THE TOOL</h2>
-            <p style={{ margin: "20px 0", wordBreak: "break-all", color: "#aaa" }}>
+            <h2 style={{ color: "#ff6a00" }}>SUPPORT</h2>
+            <p style={{ margin: "20px 0", wordBreak: "break-all", color: "#8b949e" }}>
               0x6d8D5a62Eec504f1B35cae050aDa790077B33e81
             </p>
             <button
               onClick={() => setShowDonate(false)}
               style={{
                 padding: "12px 32px",
-                border: "4px solid #ff6a00",
-                background: "#ff6a00",
-                color: "#000",
+                background: "#21262d",
+                border: "2px solid #ff6a00",
+                color: "#ff6a00",
+                borderRadius: "6px",
                 cursor: "pointer",
-                fontWeight: "bold",
               }}
             >
               CLOSE
