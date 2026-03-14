@@ -7,14 +7,14 @@ const pixelFont = Press_Start_2P({ weight: "400", subsets: ["latin"] });
 export default function Home() {
   const [tokenId, setTokenId] = useState("");
   const [compareId, setCompareId] = useState("");
-  const [nftData, setNftData] = useState(null);
-  const [compareData, setCompareData] = useState(null);
-  const [error, setError] = useState(null);
+  const [nftData, setNftData] = useState<any>(null);
+  const [compareData, setCompareData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("compare");
   const [loading, setLoading] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
 
-  const fetchNFT = async (id, setData) => {
+  const fetchNFT = async (id: string, setData: any) => {
     if (!id || isNaN(Number(id))) {
       setError("Enter valid Token ID");
       return;
@@ -34,12 +34,12 @@ export default function Home() {
     setLoading(false);
   };
 
-  const getImage = (data) =>
+  const getImage = (data: any) =>
     data
       ? `https://api.normies.art/normie/${data.name.split("#")[1]}/image.svg`
       : "";
 
-  const renderNFT = (data) => {
+  const renderNFT = (data: any) => {
     if (!data) return null;
 
     return (
@@ -74,7 +74,7 @@ export default function Home() {
             background: "#fff",
           }}
         >
-          {data.attributes?.map((attr, i) => (
+          {data.attributes?.map((attr: any, i: number) => (
             <div key={i}>
               {attr.trait_type}: {attr.value}
             </div>
@@ -166,8 +166,9 @@ export default function Home() {
                   border: "4px solid black",
                   background: "#ff6a00",
                 }}
+                disabled={loading}
               >
-                SCAN
+                {loading ? "SCANNING..." : "SCAN"}
               </button>
             </form>
 
@@ -245,9 +246,7 @@ export default function Home() {
 
           <p>Estimated Burnt: ~1,398</p>
           <p>Total Burnt Value: ~55 ETH</p>
-          <p>
-            Normies can be sacrificed to transfer action points for upgrades.
-          </p>
+          <p>Normies can be sacrificed to transfer action points for upgrades.</p>
         </div>
       )}
 
