@@ -8,110 +8,97 @@ const pixelFont = Press_Start_2P({
 });
 
 export default function Home() {
-
   const [tokenId, setTokenId] = useState("");
   const [compareId, setCompareId] = useState("");
-
   const [nftData, setNftData] = useState<any>(null);
   const [compareData, setCompareData] = useState<any>(null);
-
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const MORALIS_API_KEY = process.env.NEXT_PUBLIC_MORALIS_API_KEY || "";
-  const CONTRACT_ADDRESS = "0x9eb6e2025b64f340691e424b7fe7022ffde12438";
+  const API_BASE = "https://api.normies.art";
 
   const fetchNFT = async (id: string, setData: any) => {
-
+    if (!id.trim() || isNaN(Number(id)) || Number(id) < 0 || Number(id) > 9999) {
+      setError("Enter a valid Normie ID (0–9999)");
+      return;
+    }
     setLoading(true);
     setError(null);
-
     try {
-
-      const url =
-        `https://deep-index.moralis.io/api/v2.2/nft/${CONTRACT_ADDRESS}/${id}?chain=eth&format=decimal`;
-
-      const res = await fetch(url, {
-        headers: {
-          accept: "application/json",
-          "X-API-Key": MORALIS_API_KEY,
-        },
-      });
-
+      const res = await fetch(`${API_BASE}/normie/${id}/metadata`);
       if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+        throw new Error(`API error: ${res.status} – Check if ID exists`);
       }
-
       const data = await res.json();
-
-      if (data.metadata && typeof data.metadata === "string") {
-        data.metadata = JSON.parse(data.metadata);
-      }
-
       setData(data);
-
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Failed to load Normie");
     }
-
     setLoading(false);
-
   };
 
   const calculateRarity = (attributes: any[]) => {
-
-    if (!attributes) return null;
+    if (!attributes || attributes.length === 0) return null;
 
     let score = 0;
     let rareTrait = { name: "", weight: 0 };
 
+    // Base trait weights (by type)
     attributes.forEach((attr: any) => {
-
-      let weight = 1;
-
+      let weight = 3; // default for most
       if (attr.trait_type === "Accessory") weight = 15;
       else if (attr.trait_type === "Facial Feature") weight = 12;
       else if (attr.trait_type === "Hair Style") weight = 10;
       else if (attr.trait_type === "Eyes") weight = 8;
       else if (attr.trait_type === "Expression") weight = 6;
-      else weight = 3;
 
       score += weight;
 
       if (weight > rareTrait.weight) {
-        rareTrait = {
-          name: attr.value,
-          weight,
-        };
+        rareTrait = { name: attr.value, weight };
       }
-
     });
 
-    const rank = Math.floor(10000 - score * 12);
+    // Heavy Level bonus – higher levels much rarer (founder priority)
+    const levelAttr = attributes.find((a: any) => a.trait_type === "Level");
+    const level = levelAttr ? Number(levelAttr.value) || 1 : 1;
+    score += level * 40; // Level 1: +40, Level 2: +80, Level 3: +120, etc. – tweak if too strong/weak
+
+    // Extra distinction: Pixel Count & Action Points
+    const pixelAttr = attributes.find((a: any) => a.trait_type === "Pixel Count");
+    const pixelCount = pixelAttr ? Number(pixelAttr.value) || 0 : 0;
+    score += pixelCount / 10; // e.g. 500 pixels → +50
+
+    const actionAttr = attributes.find((a: any) => a.trait_type === "Action Points");
+    const actionPoints = actionAttr ? Number(actionAttr.value) || 0 : 0;
+    score += actionPoints / 5; // e.g. 100 AP → +20
+
+    // Customized bonus
+    const customizedAttr = attributes.find((a: any) => a.trait_type === "Customized");
+    if (customizedAttr?.value === "Yes") {
+      score += 50;
+    }
+
+    // Rank with spread (more variation)
+    const rank = Math.max(1, Math.floor(10000 - score ** 1.2));
 
     let tier = "Common";
-
-    if (score > 60) tier = "Legendary";
-    else if (score > 45) tier = "Ultra Rare";
-    else if (score > 35) tier = "Rare";
-    else if (score > 25) tier = "Uncommon";
+    if (score > 150) tier = "Legendary";
+    else if (score > 110) tier = "Ultra Rare";
+    else if (score > 80) tier = "Rare";
+    else if (score > 50) tier = "Uncommon";
 
     return {
-      score: Number(score.toFixed(2)),
+      score: Number(score.toFixed(0)),
       rank,
       tier,
       rareTrait,
+      level,
     };
-
   };
 
-  const rarity1 = nftData
-    ? calculateRarity(nftData.metadata?.attributes)
-    : null;
-
-  const rarity2 = compareData
-    ? calculateRarity(compareData.metadata?.attributes)
-    : null;
+  const rarity1 = nftData ? calculateRarity(nftData.attributes) : null;
+  const rarity2 = compareData ? calculateRarity(compareData.attributes) : null;
 
   const winner =
     rarity1 && rarity2
@@ -122,24 +109,18 @@ export default function Home() {
         : 0
       : null;
 
-  const getImage = (img: string) => {
-
-    if (!img) return "";
-
-    if (img.startsWith("ipfs://")) {
-      return img.replace("ipfs://", "https://ipfs.io/ipfs/");
+  const getImage = (data: any) => {
+    // Use direct SVG endpoint (cleaner than base64)
+    if (data?.name) {
+      const id = data.name.split("#")[1];
+      return `${API_BASE}/normie/${id}/image.svg`;
     }
-
-    return img;
-
+    return "";
   };
 
   const renderNFT = (data: any, rarity: any, index: number) => {
-
     if (!data || !rarity) return null;
-
     return (
-
       <div
         style={{
           width: "420px",
@@ -150,11 +131,9 @@ export default function Home() {
           color: "#000",
         }}
       >
-
         <h2 style={{ textAlign: "center", fontSize: "0.8rem" }}>
-          NORMIE #{data.token_id}
+          NORMIE #{data.name.split("#")[1]}
         </h2>
-
         {winner === index && (
           <p
             style={{
@@ -167,19 +146,15 @@ export default function Home() {
             WINNER
           </p>
         )}
-
         <p style={{ textAlign: "center", fontSize: "0.7rem" }}>
           Rank #{rarity.rank} / 10000
         </p>
-
         <p style={{ textAlign: "center", fontSize: "0.7rem" }}>
-          Score: {rarity.score}
+          Score: {rarity.score} (Lvl {rarity.level})
         </p>
-
         <p style={{ textAlign: "center", fontSize: "0.7rem" }}>
           Tier: {rarity.tier}
         </p>
-
         <p
           style={{
             textAlign: "center",
@@ -189,17 +164,17 @@ export default function Home() {
         >
           Rarest Trait: {rarity.rareTrait.name}
         </p>
-
         <img
-          src={getImage(data.metadata?.image)}
+          src={getImage(data)}
           style={{
             maxWidth: "100%",
             border: "4px solid #000",
             marginTop: "20px",
             marginBottom: "20px",
+            imageRendering: "pixelated",
           }}
+          alt={`Normie #${data.name.split("#")[1]}`}
         />
-
         <div
           style={{
             fontSize: "0.6rem",
@@ -208,21 +183,17 @@ export default function Home() {
             background: "#f8f8f8",
           }}
         >
-          {data.metadata?.attributes?.map((attr: any, i: number) => (
+          {data.attributes?.map((attr: any, i: number) => (
             <div key={i}>
               {attr.trait_type}: {attr.value}
             </div>
           ))}
         </div>
-
       </div>
-
     );
-
   };
 
   return (
-
     <main
       className={pixelFont.className}
       style={{
@@ -235,7 +206,6 @@ export default function Home() {
         alignItems: "center",
       }}
     >
-
       <h1
         style={{
           fontSize: "1.4rem",
@@ -245,18 +215,14 @@ export default function Home() {
       >
         Normies Rarity Score
       </h1>
-
       {error && <p style={{ color: "red" }}>{error}</p>}
-
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-
+      <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap", justifyContent: "center" }}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (tokenId) fetchNFT(tokenId, setNftData);
+            fetchNFT(tokenId, setNftData);
           }}
         >
-
           <input
             value={tokenId}
             onChange={(e) => setTokenId(e.target.value)}
@@ -269,7 +235,6 @@ export default function Home() {
               background: "#fff",
             }}
           />
-
           <button
             style={{
               padding: "10px 20px",
@@ -277,19 +242,17 @@ export default function Home() {
               background: "#000",
               color: "#fff",
             }}
+            disabled={loading}
           >
             {loading ? "SCAN..." : "SCAN"}
           </button>
-
         </form>
-
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (compareId) fetchNFT(compareId, setCompareData);
+            fetchNFT(compareId, setCompareData);
           }}
         >
-
           <input
             value={compareId}
             onChange={(e) => setCompareId(e.target.value)}
@@ -302,7 +265,6 @@ export default function Home() {
               background: "#fff",
             }}
           />
-
           <button
             style={{
               padding: "10px 20px",
@@ -310,14 +272,12 @@ export default function Home() {
               background: "#000",
               color: "#fff",
             }}
+            disabled={loading}
           >
             COMPARE
           </button>
-
         </form>
-
       </div>
-
       <div
         style={{
           display: "flex",
@@ -326,13 +286,12 @@ export default function Home() {
           flexWrap: "wrap",
         }}
       >
-
         {renderNFT(nftData, rarity1, 1)}
         {renderNFT(compareData, rarity2, 2)}
-
       </div>
-
+      <footer style={{ marginTop: "40px", fontSize: "0.7rem", color: "#666" }}>
+        Powered by <a href="https://api.normies.art/" style={{ color: "#000" }}>api.normies.art</a>
+      </footer>
     </main>
-
   );
 }
