@@ -1,116 +1,28 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Press_Start_2P } from "next/font/google";
 
 const pixelFont = Press_Start_2P({ weight: "400", subsets: ["latin"] });
 
 type Trait = { trait_type: string; value: string };
-type NFTMetadata = {
-  name: string;
-  attributes: Trait[];
-  // ... other fields if needed
-};
+type NFTMetadata = { name: string; attributes: Trait[] };
+type RarityInfo = { score: number; rank: number };
 
 export default function Home() {
   const [tokenId, setTokenId] = useState("");
   const [compareId, setCompareId] = useState("");
   const [nftData, setNftData] = useState<NFTMetadata | null>(null);
   const [compareData, setCompareData] = useState<NFTMetadata | null>(null);
+  const [nftRarity, setNftRarity] = useState<RarityInfo | null>(null);
+  const [compareRarity, setCompareRarity] = useState<RarityInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("compare");
   const [loading, setLoading] = useState(false);
-  const [collectionLoading, setCollectionLoading] = useState(false);
-  const [collectionData, setCollectionData] = useState<NFTMetadata[]>([]);
-  const [traitCounts, setTraitCounts] = useState<Record<string, Record<string, number>>>({});
-  const [totalSupply, setTotalSupply] = useState(0);
-  const [rarityCache, setRarityCache] = useState<Record<number, { score: number; rank: number }>>({});
   const [showDonate, setShowDonate] = useState(false);
 
-  // Load cached collection from localStorage on mount
-  useEffect(() => {
-    const cached = localStorage.getItem("normies_collection");
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setCollectionData(parsed);
-        computeRarityStats(parsed);
-      } catch {}
-    }
-  }, []);
-
-  const computeRarityStats = (allNFTs: NFTMetadata[]) => {
-    if (allNFTs.length === 0) return;
-
-    const counts: Record<string, Record<string, number>> = {};
-    allNFTs.forEach((nft) => {
-      nft.attributes?.forEach((attr) => {
-        if (!counts[attr.trait_type]) counts[attr.trait_type] = {};
-        counts[attr.trait_type][attr.value] = (counts[attr.trait_type][attr.value] || 0) + 1;
-      });
-    });
-
-    setTraitCounts(counts);
-    setTotalSupply(allNFTs.length);
-
-    // Precompute rarity scores & ranks
-    const scores = allNFTs.map((nft, idx) => {
-      const score = nft.attributes?.reduce((sum, attr) => {
-        const traitCount = counts[attr.trait_type]?.[attr.value] || 1;
-        return sum + totalSupply / traitCount;
-      }, 0) ?? 0;
-
-      return { id: Number(nft.name.split("#")[1]), score, idx };
-    });
-
-    // Sort descending score → higher = rarer
-    scores.sort((a, b) => b.score - a.score);
-
-    const newCache: Record<number, { score: number; rank: number }> = {};
-    scores.forEach((item, rankIdx) => {
-      newCache[item.id] = { score: item.score, rank: rankIdx + 1 };
-    });
-
-    setRarityCache(newCache);
-  };
-
-  const loadFullCollection = async () => {
-    if (collectionData.length > 9000) return; // already mostly loaded
-
-    setCollectionLoading(true);
-    setError(null);
-
-    const newCollection: NFTMetadata[] = [...collectionData];
-    const start = collectionData.length > 0 ? Math.max(...collectionData.map(n => Number(n.name.split("#")[1] || 0))) + 1 : 1;
-    const MAX = 10000;
-
-    for (let id = start; id <= MAX; id++) {
-      try {
-        const res = await fetch(`https://api.normies.art/normie/${id}/metadata`);
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data?.name) {
-          newCollection.push(data);
-        }
-      } catch {
-        // skip failed / burnt / non-existent
-      }
-
-      // Update every 50 to avoid freezing UI
-      if (id % 50 === 0) {
-        setCollectionData([...newCollection]);
-        localStorage.setItem("normies_collection", JSON.stringify(newCollection));
-      }
-    }
-
-    setCollectionData(newCollection);
-    localStorage.setItem("normies_collection", JSON.stringify(newCollection));
-    computeRarityStats(newCollection);
-    setCollectionLoading(false);
-  };
-
-  const fetchNFT = async (id: string, setData: (d: NFTMetadata | null) => void) => {
+  const fetchNFT = async (id: string, setData: (d: NFTMetadata | null) => void, setRarity: (r: RarityInfo | null) => void) => {
     if (!id || isNaN(Number(id))) {
-      setError("Enter valid Token ID");
+      setError("ENTER VALID TOKEN ID");
       return;
     }
 
@@ -122,8 +34,13 @@ export default function Home() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setData(data);
+
+      const rarityRes = await fetch(`/api/rarity?ids=${id}`);
+      if (!rarityRes.ok) throw new Error();
+      const rarityData = await rarityRes.json();
+      setRarity(rarityData.results[Number(id)] || null);
     } catch {
-      setError("Failed to fetch Normie – maybe burnt or invalid?");
+      setError(`FAILED TO LOAD NORMIE #${id}`);
     }
 
     setLoading(false);
@@ -132,39 +49,31 @@ export default function Home() {
   const getImage = (data: NFTMetadata | null) =>
     data ? `https://api.normies.art/normie/${data.name.split("#")[1]}/image.svg` : "";
 
-  const getRarityInfo = (data: NFTMetadata | null) => {
-    if (!data) return null;
-    const id = Number(data.name.split("#")[1]);
-    return rarityCache[id] || null;
-  };
-
-  const renderNFT = (data: NFTMetadata | null) => {
+  const renderNFT = (data: NFTMetadata | null, rarity: RarityInfo | null, label = "NORMIE") => {
     if (!data) return null;
 
-    const rarity = getRarityInfo(data);
-    const traitCount = data.attributes?.length || 0;
-    let upgradeHint = "Base / lightly edited";
-    let color = "#555";
-    if (traitCount > 9) {
-      upgradeHint = "Heavily upgraded!";
-      color = "#ff6a00";
-    } else if (traitCount > 6) {
-      upgradeHint = "Edited / medium level";
-      color = "#ff9500";
-    }
+    const traits = data.attributes || [];
+    const traitCount = traits.length;
+
+    const levelTrait = traits.find(t => t.trait_type.toLowerCase().includes("level"));
+    const level = levelTrait ? parseInt(levelTrait.value, 10) || 0 : 0;
+
+    let levelText = `LEVEL ${level}`;
+    let levelColor = level === 0 ? "#aaa" : level <= 5 ? "#ff9500" : level <= 15 ? "#ff6a00" : "#00ff9d";
+    let levelDesc = level === 0 ? "BASE - NO UPGRADES" : "UPGRADED - RARER DUE TO LEVEL";
 
     return (
       <div
         style={{
           width: "360px",
-          background: "#f5f5dc",
+          background: "#0f1620",
           padding: "20px",
-          border: "6px solid black",
-          boxShadow: "10px 10px 0 #ff6a00",
+          border: "4px solid #ff6a00",
+          boxShadow: "0 0 20px rgba(255,106,0,0.4)",
         }}
       >
-        <h2 style={{ textAlign: "center", fontSize: "1.1rem", marginBottom: "12px" }}>
-          {data.name}
+        <h2 style={{ textAlign: "center", fontSize: "1rem", marginBottom: "12px", color: "#ff6a00" }}>
+          {label} – {data.name.toUpperCase()}
         </h2>
 
         <img
@@ -172,48 +81,52 @@ export default function Home() {
           alt={data.name}
           style={{
             width: "100%",
-            border: "6px solid black",
-            margin: "16px 0",
+            border: "4px solid #ff6a00",
             imageRendering: "pixelated",
+            margin: "16px 0",
+            boxShadow: "0 0 15px rgba(255,106,0,0.3)",
           }}
         />
 
         <div
           style={{
             fontSize: "0.75rem",
-            border: "4px solid gray",
+            border: "3px solid #333",
             padding: "12px",
-            background: "#fff",
-            maxHeight: "220px",
+            background: "#0a0e15",
+            maxHeight: "260px",
             overflowY: "auto",
+            color: "#eee",
           }}
         >
-          {data.attributes?.map((attr, i) => (
+          {traits.map((attr, i) => (
             <div key={i} style={{ margin: "6px 0" }}>
-              <strong>{attr.trait_type}:</strong> {attr.value}
+              <strong style={{ color: "#ff6a00" }}>{attr.trait_type.toUpperCase()}:</strong> {attr.value}
             </div>
           ))}
         </div>
 
-        <div style={{ marginTop: "16px", fontSize: "0.8rem" }}>
-          <div style={{ fontWeight: "bold", color }}>
-            Upgrade level hint: {upgradeHint} ({traitCount} traits)
+        <div style={{ marginTop: "16px", fontSize: "0.85rem", color: "#ddd" }}>
+          <div style={{ fontWeight: "bold", fontSize: "1.1rem", color: levelColor, marginBottom: "6px" }}>
+            {levelText}
           </div>
-
-          {rarity ? (
-            <>
-              <div style={{ fontWeight: "bold", color: "#ff6a00", marginTop: "8px" }}>
-                Rarity Score: {rarity.score.toFixed(2)}
-              </div>
-              <div style={{ fontWeight: "bold" }}>
-                Rank: #{rarity.rank} / {totalSupply}
-              </div>
-            </>
-          ) : (
-            <div style={{ color: "#777", marginTop: "8px" }}>
-              Rarity: not calculated yet (load collection first)
+          <div style={{ color: levelColor, marginBottom: "8px" }}>
+            {levelDesc}
+          </div>
+          <div style={{ margin: "8px 0" }}>
+            TRAITS: {traitCount}
+          </div>
+          {rarity && rarity.rank > 0 ? (
+            <div style={{ fontWeight: "bold", color: "#ff6a00" }}>
+              RARITY SCORE: {rarity.score.toFixed(2)}<br />
+              RANK: #{rarity.rank}
             </div>
+          ) : (
+            <div style={{ color: "#888" }}>RARITY N/A</div>
           )}
+          <div style={{ fontSize: "0.7rem", color: "#888", marginTop: "8px" }}>
+            HIGHER LEVEL = MORE RARE (FOUNDER VIBE)
+          </div>
         </div>
       </div>
     );
@@ -223,38 +136,63 @@ export default function Home() {
     <main
       className={pixelFont.className}
       style={{
-        background: "#f5f5dc",
+        backgroundColor: "#000000",
+        backgroundImage: 'url("https://images.vexels.com/media/users/3/264959/raw/c8952802430225175500bdaf14bc7fbc-crypto-elements-pixel-art-pattern.jpg")',
+        backgroundRepeat: "repeat",
+        backgroundSize: "300px",
+        backgroundPosition: "center",
         minHeight: "100vh",
         padding: "40px 20px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        color: "#eee",
       }}
     >
-      <h1
-        style={{
-          fontSize: "2rem",
-          marginBottom: "32px",
-          // textShadow removed
-        }}
-      >
-        Normies Rarity Checker
+      {/* Dark overlay + subtle orange glow */}
+      <div style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.75)",
+        boxShadow: "inset 0 0 100px rgba(255,106,0,0.15)",
+        zIndex: -1,
+      }} />
+
+      <h1 style={{
+        fontSize: "2.2rem",
+        marginBottom: "32px",
+        color: "#ff6a00",
+        textShadow: "0 0 10px #ff6a00",
+        letterSpacing: "2px",
+      }}>
+        NORMIES RARITY CHECKER
       </h1>
 
       <div style={{ display: "flex", gap: "16px", marginBottom: "32px", flexWrap: "wrap", justifyContent: "center" }}>
-        {["compare", "market", "burnt"].map((tab) => (
+        {["COMPARE", "MARKET", "BURNT"].map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab.toLowerCase())}
             style={{
               padding: "12px 28px",
-              border: "4px solid black",
-              background: activeTab === tab ? "#ff6a00" : "#fff",
-              fontWeight: activeTab === tab ? "bold" : "normal",
+              border: "4px solid #ff6a00",
+              background: activeTab === tab.toLowerCase() ? "#ff6a00" : "#111",
+              color: activeTab === tab.toLowerCase() ? "#000" : "#ff6a00",
+              fontWeight: "bold",
               cursor: "pointer",
+              textShadow: activeTab === tab.toLowerCase() ? "0 0 5px #000" : "0 0 5px #ff6a00",
+              transition: "all 0.15s",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = "scale(1.08)";
+              e.currentTarget.style.boxShadow = "0 0 15px #ff6a00";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           >
-            {tab.toUpperCase()}
+            {tab}
           </button>
         ))}
       </div>
@@ -263,53 +201,24 @@ export default function Home() {
         <div
           style={{
             background: "#ff6a00",
-            padding: "12px 20px",
-            border: "4px solid black",
+            padding: "12px 24px",
+            border: "4px solid #fff",
             marginBottom: "24px",
-            maxWidth: "600px",
             textAlign: "center",
+            maxWidth: "500px",
+            color: "#000",
+            fontWeight: "bold",
           }}
         >
-          {error}
-        </div>
-      )}
-
-      {/* Collection loader – only show in compare tab or always? */}
-      {activeTab === "compare" && (
-        <div style={{ marginBottom: "32px", textAlign: "center" }}>
-          <button
-            onClick={loadFullCollection}
-            disabled={collectionLoading || collectionData.length > 9000}
-            style={{
-              padding: "12px 32px",
-              border: "4px solid black",
-              background: collectionData.length > 0 ? "#4caf50" : "#ff6a00",
-              color: "white",
-              cursor: "pointer",
-              marginBottom: "12px",
-            }}
-          >
-            {collectionLoading
-              ? "Loading collection... (can take minutes)"
-              : collectionData.length === 0
-              ? "Load Collection Data for Rarity (once)"
-              : `Collection loaded (${collectionData.length}/${totalSupply})`}
-          </button>
-
-          {collectionData.length > 0 && !rarityCache[1] && (
-            <p style={{ color: "#777" }}>Computing rarity...</p>
-          )}
+          {error.toUpperCase()}
         </div>
       )}
 
       {activeTab === "compare" && (
         <>
-          <div style={{ display: "flex", gap: "24px", marginBottom: "40px", flexWrap: "wrap", justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: "16px", marginBottom: "40px", flexWrap: "wrap", justifyContent: "center" }}>
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                fetchNFT(tokenId, setNftData);
-              }}
+              onSubmit={(e) => { e.preventDefault(); fetchNFT(tokenId, setNftData, setNftRarity); }}
               style={{ display: "flex" }}
             >
               <input
@@ -318,31 +227,30 @@ export default function Home() {
                 placeholder="TOKEN ID"
                 style={{
                   padding: "12px",
-                  border: "4px solid black",
+                  border: "4px solid #ff6a00",
+                  background: "#111",
+                  color: "#eee",
                   width: "160px",
                   marginRight: "8px",
                 }}
               />
               <button
-                type="submit"
                 disabled={loading}
                 style={{
                   padding: "12px 24px",
-                  border: "4px solid black",
-                  background: "#ff6a00",
-                  color: "white",
+                  border: "4px solid #ff6a00",
+                  background: loading ? "#333" : "#ff6a00",
+                  color: loading ? "#888" : "#000",
                   cursor: "pointer",
+                  fontWeight: "bold",
                 }}
               >
-                {loading ? "SCANNING..." : "SCAN"}
+                {loading ? "..." : "SCAN"}
               </button>
             </form>
 
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                fetchNFT(compareId, setCompareData);
-              }}
+              onSubmit={(e) => { e.preventDefault(); fetchNFT(compareId, setCompareData, setCompareRarity); }}
               style={{ display: "flex" }}
             >
               <input
@@ -351,19 +259,21 @@ export default function Home() {
                 placeholder="COMPARE ID"
                 style={{
                   padding: "12px",
-                  border: "4px solid black",
+                  border: "4px solid #ff6a00",
+                  background: "#111",
+                  color: "#eee",
                   width: "160px",
                   marginRight: "8px",
                 }}
               />
               <button
-                type="submit"
                 style={{
                   padding: "12px 24px",
-                  border: "4px solid black",
+                  border: "4px solid #ff6a00",
                   background: "#ff6a00",
-                  color: "white",
+                  color: "#000",
                   cursor: "pointer",
+                  fontWeight: "bold",
                 }}
               >
                 COMPARE
@@ -371,58 +281,53 @@ export default function Home() {
             </form>
           </div>
 
-          <div style={{ display: "flex", gap: "48px", flexWrap: "wrap", justifyContent: "center" }}>
-            {renderNFT(nftData)}
-            {renderNFT(compareData)}
+          <div style={{ display: "flex", gap: "32px", flexWrap: "wrap", justifyContent: "center" }}>
+            {renderNFT(nftData, nftRarity, "LEFT")}
+            {renderNFT(compareData, compareRarity, "RIGHT")}
           </div>
         </>
       )}
 
-      {/* Market tab */}
       {activeTab === "market" && (
         <div
           style={{
-            background: "#fff",
+            background: "#0f1620",
             padding: "40px",
-            border: "6px solid black",
-            boxShadow: "10px 10px 0 #ff6a00",
+            border: "6px solid #ff6a00",
+            boxShadow: "0 0 30px rgba(255,106,0,0.3)",
             textAlign: "center",
             maxWidth: "500px",
+            color: "#eee",
           }}
         >
-          <h2 style={{ marginBottom: "24px" }}>Market Stats (approx)</h2>
-          <p>Active Supply: ~8,600–8,700</p>
-          <p>Unique Holders: ~1,800</p>
-          <p>Floor Price: ~0.05–0.06 ETH</p>
-          <p>Total Volume: ~630+ ETH</p>
-          <p style={{ marginTop: "16px", fontSize: "0.9rem", color: "#555" }}>
-            (values change – check OpenSea or DexScreener)
+          <h2 style={{ color: "#ff6a00" }}>MARKET STATS</h2>
+          <p>CIRCULATING: ~8,600</p>
+          <p>FLOOR: ~0.05 ETH</p>
+          <p>HOLDERS: ~1,800</p>
+          <p style={{ marginTop: "16px", fontSize: "0.9rem", color: "#aaa" }}>
+            REAL-TIME → OPENSEA / DEXSCREENER
           </p>
         </div>
       )}
 
-      {/* Burnt tab */}
       {activeTab === "burnt" && (
         <div
           style={{
-            background: "#fff",
+            background: "#0f1620",
             padding: "40px",
-            border: "6px solid black",
-            boxShadow: "10px 10px 0 #ff6a00",
+            border: "6px solid #ff6a00",
+            boxShadow: "0 0 30px rgba(255,106,0,0.3)",
             textAlign: "center",
             maxWidth: "500px",
+            color: "#eee",
           }}
         >
-          <h2 style={{ marginBottom: "24px" }}>Burnt Normies</h2>
-          <p>Estimated Burnt: ~1,300–1,400 (13–14%)</p>
-          <p>Used for action points / canvas upgrades</p>
-          <p style={{ marginTop: "16px" }}>
-            Burn → gain points → edit your Normie → potentially increase rarity
-          </p>
+          <h2 style={{ color: "#ff6a00" }}>BURNT NORMIES</h2>
+          <p>~1,300–1,400 BURNT (~13–14%)</p>
+          <p>BURN → ACTION POINTS → LEVEL UP → RARITY BOOST</p>
         </div>
       )}
 
-      {/* Floating donate button */}
       <button
         onClick={() => setShowDonate(true)}
         style={{
@@ -430,12 +335,16 @@ export default function Home() {
           bottom: "30px",
           right: "30px",
           background: "#ff6a00",
-          border: "5px solid black",
+          border: "5px solid #fff",
           padding: "16px 20px",
-          fontSize: "1.4rem",
+          fontSize: "1.2rem",
+          color: "#000",
           cursor: "pointer",
-          borderRadius: "8px",
+          boxShadow: "0 0 15px #ff6a00",
+          transition: "transform 0.15s",
         }}
+        onMouseOver={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+        onMouseOut={(e) => (e.currentTarget.style.transform = "scale(1)")}
       >
         SUPPORT
       </button>
@@ -445,7 +354,7 @@ export default function Home() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.75)",
+            background: "rgba(0,0,0,0.85)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -454,28 +363,30 @@ export default function Home() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "#0f1620",
               padding: "40px",
-              border: "6px solid black",
+              border: "6px solid #ff6a00",
               textAlign: "center",
               maxWidth: "500px",
+              color: "#eee",
             }}
           >
-            <h2>Support the Tool</h2>
-            <p style={{ margin: "24px 0", wordBreak: "break-all" }}>
+            <h2 style={{ color: "#ff6a00" }}>SUPPORT THE TOOL</h2>
+            <p style={{ margin: "20px 0", wordBreak: "break-all", color: "#aaa" }}>
               0x6d8D5a62Eec504f1B35cae050aDa790077B33e81
             </p>
             <button
               onClick={() => setShowDonate(false)}
               style={{
                 padding: "12px 32px",
-                border: "4px solid black",
+                border: "4px solid #ff6a00",
                 background: "#ff6a00",
-                color: "white",
+                color: "#000",
                 cursor: "pointer",
+                fontWeight: "bold",
               }}
             >
-              Close
+              CLOSE
             </button>
           </div>
         </div>
