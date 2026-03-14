@@ -20,7 +20,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
 
-  const fetchNFT = async (id: string, setData: (d: NFTMetadata | null) => void, setRarity: (r: RarityInfo | null) => void) => {
+  const fetchNFT = async (
+    id: string,
+    setData: (d: NFTMetadata | null) => void,
+    setRarity: (r: RarityInfo | null) => void
+  ) => {
     if (!id || isNaN(Number(id))) {
       setError("ENTER VALID TOKEN ID");
       return;
@@ -31,28 +35,76 @@ export default function Home() {
 
     try {
       const res = await fetch(`https://api.normies.art/normie/${id}/metadata`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+
+      let data: NFTMetadata | null = null;
+      let isPartial = false;
+
+      if (res.ok) {
+        try {
+          data = await res.json();
+          // Partial check: if no name/attributes → treat as incomplete
+          if (!data?.name || !data?.attributes?.length) {
+            isPartial = true;
+          }
+        } catch {
+          isPartial = true;
+        }
+      } else {
+        isPartial = true;
+      }
+
       setData(data);
 
-      const rarityRes = await fetch(`/api/rarity?ids=${id}`);
-      if (!rarityRes.ok) throw new Error();
-      const rarityData = await rarityRes.json();
-      setRarity(rarityData.results[Number(id)] || null);
-    } catch {
-      setError(`FAILED TO LOAD NORMIE #${id}`);
-    }
+      // Try rarity anyway (if partial data exists)
+      try {
+        const rarityRes = await fetch(`/api/rarity?ids=${id}`);
+        if (rarityRes.ok) {
+          const rarityData = await rarityRes.json();
+          setRarity(rarityData.results[Number(id)] || null);
+        }
+      } catch {}
 
-    setLoading(false);
+      // If truly nothing loaded → error
+      if (!data || !data.attributes?.length) {
+        throw new Error("TOKEN NOT FOUND OR BURNT");
+      }
+
+      if (isPartial) {
+        setError("PARTIAL DATA LOADED – POSSIBLY BURNT OR INCOMPLETE");
+      }
+    } catch (err: any) {
+      setData(null);
+      setRarity(null);
+      setError(err.message.toUpperCase() || "FAILED TO LOAD NORMIE");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getImage = (data: NFTMetadata | null) =>
     data ? `https://api.normies.art/normie/${data.name.split("#")[1]}/image.svg` : "";
 
   const renderNFT = (data: NFTMetadata | null, rarity: RarityInfo | null, label = "NORMIE") => {
-    if (!data) return null;
+    if (!data || !data.attributes?.length) {
+      return (
+        <div
+          style={{
+            width: "380px",
+            background: "#0d1117",
+            border: "2px solid #30363d",
+            borderRadius: "12px",
+            padding: "40px",
+            textAlign: "center",
+            color: "#f85149",
+            fontSize: "1rem",
+          }}
+        >
+          NO DATA<br />TOKEN NOT FOUND / BURNT
+        </div>
+      );
+    }
 
-    const traits = data.attributes || [];
+    const traits = data.attributes;
     const traitCount = traits.length;
 
     const levelTrait = traits.find(t => t.trait_type.toLowerCase().includes("level"));
@@ -65,20 +117,11 @@ export default function Home() {
       <div
         style={{
           width: "380px",
-          background: "#0d1117",           // dark card bg
+          background: "#0d1117",
           border: "2px solid #30363d",
           borderRadius: "12px",
           overflow: "hidden",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.8), inset 0 0 12px rgba(255,106,0,0.08)",
-          transition: "all 0.2s",
-        }}
-        onMouseOver={(e) => {
-          e.currentTarget.style.boxShadow = "0 12px 40px rgba(255,106,0,0.25), inset 0 0 20px rgba(255,106,0,0.12)";
-          e.currentTarget.style.transform = "translateY(-4px)";
-        }}
-        onMouseOut={(e) => {
-          e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.8), inset 0 0 12px rgba(255,106,0,0.08)";
-          e.currentTarget.style.transform = "translateY(0)";
+          boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
         }}
       >
         {/* Header */}
@@ -92,15 +135,15 @@ export default function Home() {
             alignItems: "center",
           }}
         >
-          <div style={{ fontSize: "0.95rem", color: "#ff6a00", fontWeight: "bold" }}>
-            {data.name.toUpperCase()}
+          <div style={{ color: "#ff6a00", fontSize: "1rem", fontWeight: "bold" }}>
+            {label.toUpperCase()} #{data.name.split("#")[1]}
           </div>
-          <div style={{ fontSize: "0.85rem", color: levelColor }}>
+          <div style={{ color: levelColor, fontSize: "0.9rem" }}>
             {levelText}
           </div>
         </div>
 
-        {/* Image area */}
+        {/* Image */}
         <div style={{ padding: "16px", background: "#000" }}>
           <img
             src={getImage(data)}
@@ -114,7 +157,7 @@ export default function Home() {
           />
         </div>
 
-        {/* Traits section */}
+        {/* Traits */}
         <div style={{ padding: "16px", fontSize: "0.8rem", color: "#c9d1d9" }}>
           {traits.map((attr, i) => (
             <div
@@ -133,13 +176,9 @@ export default function Home() {
             </div>
           ))}
 
-          <div style={{ marginTop: "16px", textAlign: "center", color: levelColor, fontWeight: "bold" }}>
-            {level === 0 ? "BASE NORMIE" : "UPGRADED NORMIE"}
-          </div>
-
           {rarity && rarity.rank > 0 && (
-            <div style={{ marginTop: "12px", textAlign: "center", color: "#ff6a00" }}>
-              SCORE: {rarity.score.toFixed(2)}<br />
+            <div style={{ marginTop: "16px", textAlign: "center", color: "#ff6a00", fontWeight: "bold" }}>
+              RARITY SCORE: {rarity.score.toFixed(2)}<br />
               RANK: #{rarity.rank}
             </div>
           )}
@@ -152,7 +191,7 @@ export default function Home() {
     <main
       className={pixelFont.className}
       style={{
-        backgroundColor: "#0d1117",          // GitHub-dark-like dark grey-black
+        backgroundColor: "#0d1117",
         color: "#c9d1d9",
         minHeight: "100vh",
         padding: "40px 20px",
@@ -166,39 +205,9 @@ export default function Home() {
         marginBottom: "40px",
         color: "#ff6a00",
         textShadow: "0 0 12px rgba(255,106,0,0.5)",
-        letterSpacing: "1px",
       }}>
         NORMIES RARITY CHECKER
       </h1>
-
-      <div style={{ display: "flex", gap: "16px", marginBottom: "40px", flexWrap: "wrap", justifyContent: "center" }}>
-        {["COMPARE", "MARKET", "BURNT"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab.toLowerCase())}
-            style={{
-              padding: "12px 28px",
-              border: "2px solid #30363d",
-              background: activeTab === tab.toLowerCase() ? "#21262d" : "#161b22",
-              color: activeTab === tab.toLowerCase() ? "#ff6a00" : "#8b949e",
-              fontWeight: "bold",
-              cursor: "pointer",
-              borderRadius: "6px",
-              transition: "all 0.2s",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = "#ff6a00";
-              e.currentTarget.style.boxShadow = "0 0 16px rgba(255,106,0,0.3)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = "#30363d";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
 
       {error && (
         <div
@@ -206,10 +215,12 @@ export default function Home() {
             background: "#21262d",
             padding: "12px 24px",
             border: "2px solid #f85149",
-            borderRadius: "6px",
+            borderRadius: "8px",
             marginBottom: "24px",
             color: "#f85149",
             fontWeight: "bold",
+            textAlign: "center",
+            maxWidth: "600px",
           }}
         >
           {error}
@@ -227,9 +238,9 @@ export default function Home() {
                 style={{
                   padding: "12px 16px",
                   border: "2px solid #30363d",
-                  background: "#0d1117",
+                  background: "#161b22",
                   color: "#e6edf3",
-                  width: "160px",
+                  width: "140px",
                   marginRight: "8px",
                   borderRadius: "6px",
                 }}
@@ -244,6 +255,7 @@ export default function Home() {
                   borderRadius: "6px",
                   cursor: "pointer",
                   fontWeight: "bold",
+                  minWidth: "100px",
                 }}
               >
                 {loading ? "..." : "SCAN"}
@@ -258,9 +270,9 @@ export default function Home() {
                 style={{
                   padding: "12px 16px",
                   border: "2px solid #30363d",
-                  background: "#0d1117",
+                  background: "#161b22",
                   color: "#e6edf3",
-                  width: "160px",
+                  width: "140px",
                   marginRight: "8px",
                   borderRadius: "6px",
                 }}
@@ -274,6 +286,7 @@ export default function Home() {
                   borderRadius: "6px",
                   cursor: "pointer",
                   fontWeight: "bold",
+                  minWidth: "100px",
                 }}
               >
                 COMPARE
@@ -288,18 +301,16 @@ export default function Home() {
         </>
       )}
 
+      {/* Market & Burnt tabs (simple dark cards) */}
       {activeTab === "market" && (
-        <div
-          style={{
-            background: "#0d1117",
-            padding: "32px",
-            border: "2px solid #30363d",
-            borderRadius: "12px",
-            maxWidth: "500px",
-            textAlign: "center",
-            color: "#e6edf3",
-          }}
-        >
+        <div style={{
+          background: "#0d1117",
+          padding: "32px",
+          border: "2px solid #30363d",
+          borderRadius: "12px",
+          maxWidth: "500px",
+          textAlign: "center",
+        }}>
           <h2 style={{ color: "#ff6a00", marginBottom: "20px" }}>MARKET STATS</h2>
           <p>CIRCULATING: ~8,600</p>
           <p>FLOOR: ~0.05 ETH</p>
@@ -308,17 +319,14 @@ export default function Home() {
       )}
 
       {activeTab === "burnt" && (
-        <div
-          style={{
-            background: "#0d1117",
-            padding: "32px",
-            border: "2px solid #30363d",
-            borderRadius: "12px",
-            maxWidth: "500px",
-            textAlign: "center",
-            color: "#e6edf3",
-          }}
-        >
+        <div style={{
+          background: "#0d1117",
+          padding: "32px",
+          border: "2px solid #30363d",
+          borderRadius: "12px",
+          maxWidth: "500px",
+          textAlign: "center",
+        }}>
           <h2 style={{ color: "#ff6a00", marginBottom: "20px" }}>BURNT NORMIES</h2>
           <p>~1,300–1,400 BURNT</p>
           <p>BURN → ACTION POINTS → LEVEL UP</p>
@@ -331,14 +339,13 @@ export default function Home() {
           position: "fixed",
           bottom: "30px",
           right: "30px",
-          background: "#21262d",
+          background: "#161b22",
           border: "2px solid #ff6a00",
           color: "#ff6a00",
           padding: "16px 24px",
           borderRadius: "8px",
           cursor: "pointer",
           fontWeight: "bold",
-          boxShadow: "0 0 16px rgba(255,106,0,0.3)",
         }}
       >
         SUPPORT
@@ -356,17 +363,15 @@ export default function Home() {
             zIndex: 100,
           }}
         >
-          <div
-            style={{
-              background: "#0d1117",
-              padding: "40px",
-              border: "2px solid #30363d",
-              borderRadius: "12px",
-              textAlign: "center",
-              maxWidth: "500px",
-              color: "#e6edf3",
-            }}
-          >
+          <div style={{
+            background: "#0d1117",
+            padding: "40px",
+            border: "2px solid #30363d",
+            borderRadius: "12px",
+            textAlign: "center",
+            maxWidth: "500px",
+            color: "#e6edf3",
+          }}>
             <h2 style={{ color: "#ff6a00" }}>SUPPORT</h2>
             <p style={{ margin: "20px 0", wordBreak: "break-all", color: "#8b949e" }}>
               0x6d8D5a62Eec504f1B35cae050aDa790077B33e81
@@ -375,7 +380,7 @@ export default function Home() {
               onClick={() => setShowDonate(false)}
               style={{
                 padding: "12px 32px",
-                background: "#21262d",
+                background: "#161b22",
                 border: "2px solid #ff6a00",
                 color: "#ff6a00",
                 borderRadius: "6px",
