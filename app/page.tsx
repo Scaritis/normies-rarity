@@ -42,7 +42,6 @@ export default function Home() {
       if (res.ok) {
         try {
           data = await res.json();
-          // Partial check: if no name/attributes → treat as incomplete
           if (!data?.name || !data?.attributes?.length) {
             isPartial = true;
           }
@@ -55,7 +54,6 @@ export default function Home() {
 
       setData(data);
 
-      // Try rarity anyway (if partial data exists)
       try {
         const rarityRes = await fetch(`/api/rarity?ids=${id}`);
         if (rarityRes.ok) {
@@ -64,13 +62,12 @@ export default function Home() {
         }
       } catch {}
 
-      // If truly nothing loaded → error
       if (!data || !data.attributes?.length) {
         throw new Error("TOKEN NOT FOUND OR BURNT");
       }
 
       if (isPartial) {
-        setError("PARTIAL DATA LOADED – POSSIBLY BURNT OR INCOMPLETE");
+        setError("PARTIAL DATA – POSSIBLY BURNT OR INCOMPLETE");
       }
     } catch (err: any) {
       setData(null);
@@ -91,7 +88,7 @@ export default function Home() {
           style={{
             width: "380px",
             background: "#0d1117",
-            border: "2px solid #30363d",
+            border: "2px solid #f85149",
             borderRadius: "12px",
             padding: "40px",
             textAlign: "center",
@@ -99,7 +96,7 @@ export default function Home() {
             fontSize: "1rem",
           }}
         >
-          NO DATA<br />TOKEN NOT FOUND / BURNT
+          NO DATA AVAILABLE<br />TOKEN NOT FOUND / BURNT
         </div>
       );
     }
@@ -183,6 +180,20 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Partial warning if needed */}
+        {error && error.includes("PARTIAL") && (
+          <div style={{
+            background: "#2a1a1a",
+            padding: "8px",
+            textAlign: "center",
+            color: "#ffaa33",
+            fontSize: "0.75rem",
+            borderTop: "1px solid #30363d",
+          }}>
+            PARTIAL DATA LOADED – POSSIBLY BURNT
+          </div>
+        )}
       </div>
     );
   };
@@ -209,7 +220,7 @@ export default function Home() {
         NORMIES RARITY CHECKER
       </h1>
 
-      {error && (
+      {error && !error.includes("PARTIAL") && (
         <div
           style={{
             background: "#21262d",
@@ -301,7 +312,6 @@ export default function Home() {
         </>
       )}
 
-      {/* Market & Burnt tabs (simple dark cards) */}
       {activeTab === "market" && (
         <div style={{
           background: "#0d1117",
@@ -333,23 +343,44 @@ export default function Home() {
         </div>
       )}
 
+      {/* Neon orange SUPPORT button */}
       <button
         onClick={() => setShowDonate(true)}
         style={{
           position: "fixed",
           bottom: "30px",
           right: "30px",
-          background: "#161b22",
-          border: "2px solid #ff6a00",
-          color: "#ff6a00",
+          background: "#ff6a00",
+          color: "#000",
           padding: "16px 24px",
+          border: "none",
           borderRadius: "8px",
           cursor: "pointer",
           fontWeight: "bold",
+          fontSize: "1.1rem",
+          boxShadow: "0 0 20px rgba(255,106,0,0.7), 0 0 40px rgba(255,106,0,0.4)",
+          transition: "all 0.3s ease",
+          animation: "neonPulse 2s infinite alternate",
         }}
       >
         SUPPORT
       </button>
+
+      {/* Neon pulse animation */}
+      <style jsx global>{`
+        @keyframes neonPulse {
+          from {
+            box-shadow: 0 0 15px rgba(255,106,0,0.6), 0 0 30px rgba(255,106,0,0.4);
+          }
+          to {
+            box-shadow: 0 0 30px rgba(255,106,0,1), 0 0 60px rgba(255,106,0,0.7);
+          }
+        }
+        button:hover {
+          transform: scale(1.08);
+          box-shadow: 0 0 40px rgba(255,106,0,1), 0 0 80px rgba(255,106,0,0.8) !important;
+        }
+      `}</style>
 
       {showDonate && (
         <div
@@ -366,13 +397,14 @@ export default function Home() {
           <div style={{
             background: "#0d1117",
             padding: "40px",
-            border: "2px solid #30363d",
+            border: "2px solid #ff6a00",
             borderRadius: "12px",
             textAlign: "center",
             maxWidth: "500px",
             color: "#e6edf3",
+            boxShadow: "0 0 30px rgba(255,106,0,0.5)",
           }}>
-            <h2 style={{ color: "#ff6a00" }}>SUPPORT</h2>
+            <h2 style={{ color: "#ff6a00" }}>SUPPORT THE TOOL</h2>
             <p style={{ margin: "20px 0", wordBreak: "break-all", color: "#8b949e" }}>
               0x6d8D5a62Eec504f1B35cae050aDa790077B33e81
             </p>
