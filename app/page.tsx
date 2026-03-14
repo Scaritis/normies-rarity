@@ -11,10 +11,13 @@ type RarityInfo = { score: number; rank: number };
 export default function Home() {
   const [tokenId, setTokenId] = useState("");
   const [compareId, setCompareId] = useState("");
+  const [burntId, setBurntId] = useState("");
   const [nftData, setNftData] = useState<NFTMetadata | null>(null);
   const [compareData, setCompareData] = useState<NFTMetadata | null>(null);
+  const [burntData, setBurntData] = useState<NFTMetadata | null>(null);
   const [nftRarity, setNftRarity] = useState<RarityInfo | null>(null);
   const [compareRarity, setCompareRarity] = useState<RarityInfo | null>(null);
+  const [burntRarity, setBurntRarity] = useState<RarityInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("compare");
   const [loading, setLoading] = useState(false);
@@ -23,7 +26,8 @@ export default function Home() {
   const fetchNFT = async (
     id: string,
     setData: (d: NFTMetadata | null) => void,
-    setRarity: (r: RarityInfo | null) => void
+    setRarity: (r: RarityInfo | null) => void,
+    setPartialWarning?: (msg: string | null) => void
   ) => {
     if (!id || isNaN(Number(id))) {
       setError("ENTER VALID TOKEN ID");
@@ -42,7 +46,7 @@ export default function Home() {
       if (res.ok) {
         try {
           data = await res.json();
-          if (!data?.name || !data?.attributes?.length) {
+          if (!data?.name || !data?.attributes?.length || data.attributes.length < 5) { // heuristic for partial/burnt
             isPartial = true;
           }
         } catch {
@@ -63,11 +67,11 @@ export default function Home() {
       } catch {}
 
       if (!data || !data.attributes?.length) {
-        throw new Error("TOKEN NOT FOUND OR BURNT");
+        throw new Error("TOKEN NOT FOUND OR FULLY BURNT");
       }
 
-      if (isPartial) {
-        setError("PARTIAL DATA – POSSIBLY BURNT OR INCOMPLETE");
+      if (isPartial && setPartialWarning) {
+        setPartialWarning("PARTIAL DATA – LIKELY BURNT / SACRIFICED");
       }
     } catch (err: any) {
       setData(null);
@@ -81,7 +85,12 @@ export default function Home() {
   const getImage = (data: NFTMetadata | null) =>
     data ? `https://api.normies.art/normie/${data.name.split("#")[1]}/image.svg` : "";
 
-  const renderNFT = (data: NFTMetadata | null, rarity: RarityInfo | null, label = "NORMIE") => {
+  const renderNFT = (
+    data: NFTMetadata | null,
+    rarity: RarityInfo | null,
+    label = "NORMIE",
+    partialWarning: string | null = null
+  ) => {
     if (!data || !data.attributes?.length) {
       return (
         <div
@@ -93,10 +102,9 @@ export default function Home() {
             padding: "40px",
             textAlign: "center",
             color: "#f85149",
-            fontSize: "1rem",
           }}
         >
-          NO DATA AVAILABLE<br />TOKEN NOT FOUND / BURNT
+          NO DATA<br />TOKEN NOT FOUND / FULLY BURNT
         </div>
       );
     }
@@ -106,9 +114,15 @@ export default function Home() {
 
     const levelTrait = traits.find(t => t.trait_type.toLowerCase().includes("level"));
     const level = levelTrait ? parseInt(levelTrait.value, 10) || 0 : 0;
+    const pixelTrait = traits.find(t => t.trait_type.toLowerCase().includes("pixel"));
+    const pixels = pixelTrait ? pixelTrait.value : "N/A";
+    const apTrait = traits.find(t => t.trait_type.toLowerCase().includes("action"));
+    const ap = apTrait ? apTrait.value : "0";
 
     let levelText = `LEVEL ${level}`;
     let levelColor = level === 0 ? "#999" : level <= 5 ? "#ffaa33" : level <= 15 ? "#ff6a00" : "#00ffaa";
+
+    const isLikelyBurnt = Number(ap) === 0 && Number(level) <= 1 && traitCount < 10;
 
     return (
       <div
@@ -121,7 +135,6 @@ export default function Home() {
           boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
         }}
       >
-        {/* Header */}
         <div
           style={{
             background: "#161b22",
@@ -140,7 +153,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Image */}
         <div style={{ padding: "16px", background: "#000" }}>
           <img
             src={getImage(data)}
@@ -154,15 +166,14 @@ export default function Home() {
           />
         </div>
 
-        {/* Traits */}
         <div style={{ padding: "16px", fontSize: "0.8rem", color: "#c9d1d9" }}>
-          {traits.map((attr, i) => (
+          {traits.slice(0, 10).map((attr, i) => ( // limit to avoid overflow
             <div
               key={i}
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                margin: "8px 0",
+                margin: "6px 0",
                 padding: "4px 8px",
                 background: i % 2 === 0 ? "#161b22" : "transparent",
                 borderRadius: "4px",
@@ -173,27 +184,43 @@ export default function Home() {
             </div>
           ))}
 
-          {rarity && rarity.rank > 0 && (
-            <div style={{ marginTop: "16px", textAlign: "center", color: "#ff6a00", fontWeight: "bold" }}>
-              RARITY SCORE: {rarity.score.toFixed(2)}<br />
-              RANK: #{rarity.rank}
+          <div style={{ marginTop: "12px", textAlign: "center" }}>
+            <div style={{ color: "#aaa" }}>Pixels: {pixels} | AP: {ap}</div>
+            {rarity && rarity.rank > 0 && (
+              <div style={{ color: "#ff6a00", fontWeight: "bold", marginTop: "8px" }}>
+                SCORE: {rarity.score.toFixed(2)} | RANK: #{rarity.rank}
+              </div>
+            )}
+          </div>
+
+          {isLikelyBurnt && (
+            <div style={{
+              background: "#2a1a1a",
+              marginTop: "12px",
+              padding: "8px",
+              textAlign: "center",
+              color: "#ff4444",
+              fontWeight: "bold",
+              borderRadius: "4px",
+            }}>
+              BURNT / SACRIFICED
+            </div>
+          )}
+
+          {partialWarning && (
+            <div style={{
+              background: "#2a1a1a",
+              marginTop: "8px",
+              padding: "8px",
+              textAlign: "center",
+              color: "#ffaa33",
+              fontSize: "0.75rem",
+              borderRadius: "4px",
+            }}>
+              {partialWarning}
             </div>
           )}
         </div>
-
-        {/* Partial warning if needed */}
-        {error && error.includes("PARTIAL") && (
-          <div style={{
-            background: "#2a1a1a",
-            padding: "8px",
-            textAlign: "center",
-            color: "#ffaa33",
-            fontSize: "0.75rem",
-            borderTop: "1px solid #30363d",
-          }}>
-            PARTIAL DATA LOADED – POSSIBLY BURNT
-          </div>
-        )}
       </div>
     );
   };
@@ -220,7 +247,36 @@ export default function Home() {
         NORMIES RARITY CHECKER
       </h1>
 
-      {error && !error.includes("PARTIAL") && (
+      <div style={{ display: "flex", gap: "16px", marginBottom: "40px", flexWrap: "wrap", justifyContent: "center" }}>
+        {["COMPARE", "MARKET", "BURNT"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab.toLowerCase())}
+            style={{
+              padding: "12px 28px",
+              border: "2px solid #30363d",
+              background: activeTab === tab.toLowerCase() ? "#21262d" : "#161b22",
+              color: activeTab === tab.toLowerCase() ? "#ff6a00" : "#8b949e",
+              fontWeight: "bold",
+              cursor: "pointer",
+              borderRadius: "6px",
+              transition: "all 0.2s",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = "#ff6a00";
+              e.currentTarget.style.boxShadow = "0 0 16px rgba(255,106,0,0.3)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = "#30363d";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {error && (
         <div
           style={{
             background: "#21262d",
@@ -325,6 +381,9 @@ export default function Home() {
           <p>CIRCULATING: ~8,600</p>
           <p>FLOOR: ~0.05 ETH</p>
           <p>HOLDERS: ~1,800</p>
+          <p style={{ marginTop: "16px", fontSize: "0.9rem", color: "#aaa" }}>
+            (real-time → check OpenSea)
+          </p>
         </div>
       )}
 
@@ -334,16 +393,62 @@ export default function Home() {
           padding: "32px",
           border: "2px solid #30363d",
           borderRadius: "12px",
-          maxWidth: "500px",
+          maxWidth: "600px",
           textAlign: "center",
         }}>
           <h2 style={{ color: "#ff6a00", marginBottom: "20px" }}>BURNT NORMIES</h2>
-          <p>~1,300–1,400 BURNT</p>
-          <p>BURN → ACTION POINTS → LEVEL UP</p>
+          <p>Estimated burnt: ~1,300–1,400 (~13–14% of 10,000 supply)</p>
+          <p>Estimated burnt value: ~60–100+ ETH (based on founder/community reports)</p>
+          <p style={{ margin: "16px 0" }}>
+            Burning gives Action Points → used to upgrade other Normies (pixels/traits transferred).<br />
+            Burnt tokens show partial data (image + basics) or error.
+          </p>
+
+          <div style={{ margin: "24px 0" }}>
+            <input
+              value={burntId}
+              onChange={(e) => setBurntId(e.target.value.trim())}
+              placeholder="ENTER SUSPECTED BURNT ID"
+              style={{
+                padding: "12px 16px",
+                border: "2px solid #30363d",
+                background: "#161b22",
+                color: "#e6edf3",
+                width: "220px",
+                marginRight: "8px",
+                borderRadius: "6px",
+              }}
+            />
+            <button
+              onClick={() => fetchNFT(burntId, setBurntData, setBurntRarity)}
+              disabled={loading || !burntId}
+              style={{
+                padding: "12px 24px",
+                background: loading ? "#21262d" : "#f85149",
+                color: "#fff",
+                border: "2px solid #f85149",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+            >
+              CHECK BURNT
+            </button>
+          </div>
+
+          {burntData ? (
+            <div style={{ marginTop: "32px" }}>
+              {renderNFT(burntData, burntRarity, "BURNT NORMIE")}
+            </div>
+          ) : (
+            <p style={{ color: "#888", marginTop: "20px" }}>
+              Enter a burnt ID to see remnants (image + partial traits if available)
+            </p>
+          )}
         </div>
       )}
 
-      {/* Neon orange SUPPORT button */}
+      {/* Neon SUPPORT button */}
       <button
         onClick={() => setShowDonate(true)}
         style={{
@@ -366,15 +471,10 @@ export default function Home() {
         SUPPORT
       </button>
 
-      {/* Neon pulse animation */}
       <style jsx global>{`
         @keyframes neonPulse {
-          from {
-            box-shadow: 0 0 15px rgba(255,106,0,0.6), 0 0 30px rgba(255,106,0,0.4);
-          }
-          to {
-            box-shadow: 0 0 30px rgba(255,106,0,1), 0 0 60px rgba(255,106,0,0.7);
-          }
+          from { box-shadow: 0 0 15px rgba(255,106,0,0.6), 0 0 30px rgba(255,106,0,0.4); }
+          to   { box-shadow: 0 0 30px rgba(255,106,0,1), 0 0 60px rgba(255,106,0,0.7); }
         }
         button:hover {
           transform: scale(1.08);
